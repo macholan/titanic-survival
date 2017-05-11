@@ -1,0 +1,91 @@
+---
+title: "Titanic Kaggle Tutorial"
+author: "Christina Macholan"
+date: "5/10/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+``` {r}
+# load the Titanic data
+titanic.train <- read.csv("train.csv", na.strings=c("","NA"))
+titanic.test <- read.csv("test.csv", na.strings=c("","NA"))
+
+# review summary stats
+summary(titanic.train)
+
+# what is our baseline accuracy (e.g. if we just predict everyone survives?)
+table(titanic.train$Survived)
+342/(342+549) # 38.38% survival rate for training set
+
+# change numeric variables into factors where appropriate
+titanic.train$Survived <- as.factor(titanic.train$Survived)
+titanic.train$Pclass <- as.factor(titanic.train$Pclass)
+
+# extract Cabin letter as varaible
+titanic.train$CabinA <- as.factor(ifelse(grepl("A",titanic.train$Cabin),1,0))
+titanic.train$CabinB <- as.factor(ifelse(grepl("B",titanic.train$Cabin),1,0))
+titanic.train$CabinC <- as.factor(ifelse(grepl("C",titanic.train$Cabin),1,0))
+titanic.train$CabinD <- as.factor(ifelse(grepl("D",titanic.train$Cabin),1,0))
+titanic.train$CabinE <- as.factor(ifelse(grepl("E",titanic.train$Cabin),1,0))
+titanic.train$CabinF <- as.factor(ifelse(grepl("F",titanic.train$Cabin),1,0))
+titanic.train$CabinG <- as.factor(ifelse(grepl("G",titanic.train$Cabin),1,0))
+titanic.train$CabinT <- as.factor(ifelse(grepl("T",titanic.train$Cabin),1,0))
+
+# extract title from Name as variable
+titanic.train$Name <- as.character(titanic.train$Name)
+titanic.train$Title <- as.factor(gsub("\\.\\s.*","",gsub("(.*\\,\\s)", "", titanic.train$Name)))
+
+# extract last name from Name
+# titanic.train$LastName <- as.factor(gsub("\\,\\s.*", "", titanic.train$Name))
+
+# take the log of Fare to center mean
+titanic.train$LogFare <- log(titanic.train$Fare + 1)
+
+# flag variable NAs in case they are predictive
+titanic.train$CabinNA <- as.factor(ifelse(is.na(titanic.train$Cabin),1,0))
+titanic.train$Embarked <- as.factor(ifelse(is.na(titanic.train$Embarked), "Unknown", as.character(titanic.train$Embarked)))
+titanic.train$AgeNA <- as.factor(ifelse(is.na(titanic.train$Age),1,0))
+
+# impute NA values for variables
+titanic.train$AgeImputed <- ifelse(is.na(titanic.train$Age), median(titanic.train$Age, na.rm = TRUE), titanic.train$Age) # start with lazy imputation and adjust once a good model is selected
+
+# create new DF with reduced set of variables
+drops <- c("Name","PassengerId","Cabin","Ticket","Age")
+titanic.train.reduced <- titanic.train[ , !(names(titanic.train) %in% drops)]
+
+
+# create train and test splits
+train.size <- round(0.70*nrow(titanic.train.reduced))
+set.seed(1234)
+titanic.train.sample <- sample(1:nrow(titanic.train.reduced), nrow(titanic.train.reduced), replace = FALSE)
+titanic.train.reduced$part <- NA
+for (i in 1:nrow(titanic.train.reduced)) {
+  titanic.train.reduced$part[i] <- ifelse(titanic.train.sample[i] <= train.size, "train", "valid")
+}
+
+data.train <- titanic.train.reduced[titanic.train.reduced$part=="train",]
+x.train <- data.train[,c(2:20)]
+c.train <- data.train[,1] 
+n.train.c <- length(c.train) 
+data.train.c <- cbind(x.train, Survived = c.train)
+
+data.valid <- titanic.train.reduced[titanic.train.reduced$part=="valid",]
+x.valid <- data.valid[,c(2:20)]
+c.valid <- data.valid[,1] 
+n.valid.c <- length(c.valid) 
+data.valid.c <- cbind(x.valid, Survived = c.valid)
+
+
+# build GLM models
+model.glm1 <- glm(Survived~., data = data.train.c, binomial("logit"))
+
+model.rpart1 <- rpart(Survived~., data = titanic.train.reduced, method = "class")
+barplot(model.rpart1$variable.importance, horiz = TRUE, las = 1)
+summary(model.rpart1)
+rpart.plot(model.rpart1)
+
+```
